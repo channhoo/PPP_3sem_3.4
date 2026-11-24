@@ -2,6 +2,7 @@
 
 from pathlib import Path
 from random import Random
+from entities import Ship
 
 import pygame
 
@@ -31,6 +32,7 @@ class App:
 
         self.ship = load_sprite("ship", 2)
         self.flame = load_sprite("flame", 2)
+        self.player = Ship(self.ship, self.flame)
         self.life_icon = load_sprite("life", 2)
         self.rocks = [load_sprite(f"asteroid_{index}", 2) for index in (1, 2, 3)]
         self.distant_rocks = [rock.copy() for rock in self.rocks]
@@ -120,8 +122,10 @@ class App:
             self.scroll = (self.scroll + cfg.BACKGROUND_SPEED * dt) % cfg.WIDTH
             self._draw_background()
             if self.playing:
-                center = self.screen.get_rect().center
-                self.screen.blit(self.ship, self.ship.get_rect(center=center))
+                keys = pygame.key.get_pressed()
+                turn = int(keys[pygame.K_RIGHT]) - int(keys[pygame.K_LEFT])
+                self.player.update(dt, turn, keys[pygame.K_UP])
+                self.player.draw(self.screen)
             else:
                 self._draw_splash()
             self._draw_hud()
