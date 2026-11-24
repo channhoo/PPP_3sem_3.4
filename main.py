@@ -2,7 +2,7 @@
 
 from pathlib import Path
 from random import Random, choice, randrange
-from entities import Asteroid, Rocket, Ship
+from entities import Asteroid, Explosion, Rocket, Ship, touching
 
 import pygame
 
@@ -34,6 +34,13 @@ class App:
         self.flame = load_sprite("flame", 2)
         self.player = Ship(self.ship, self.flame)
         self.rocket_image = load_sprite("rocket", 2)
+        sheet = load_sprite("explosion", cfg.EXPLOSION_SCALE)
+        frame_size = cfg.EXPLOSION_FRAME_SIZE * cfg.EXPLOSION_SCALE
+        self.explosion_frames = [
+            sheet.subsurface((x, 0, frame_size, frame_size))
+            for x in range(0, sheet.get_width(), frame_size)
+        ]
+        self.explosions = []
         self.rockets = []
         self.asteroids = []
         self.spawn_timer = cfg.ASTEROID_INTERVAL
@@ -138,7 +145,56 @@ class App:
         for rocket in self.rockets:
             rocket.update(dt)
         self.rockets = [rocket for rocket in self.rockets if rocket.remaining > 0]
+        self._check_collisions()
         
+    def _start_game(self):
+        """Начать новую партию с полным запасом и пустым полем."""
+        self.player = Ship(self.ship, self.flame)
+        self.rockets.clear()
+        self.asteroids.clear()
+        self.explosions.clear()
+        self.spawn_timer = cfg.ASTEROID_INTERVAL
+        self.lives = cfg.START_LIVES
+        self.score = 0
+        self.playing = True
+
+    def _check_collisions(self):
+        """Обработать попадания ракет и столкновение с кораблём."""
+        for rocket in self.rockets[:]:
+            for asteroid in self.asteroids:
+                if touching(
+                    rocket.position,
+                    asteroid.position,
+                    cfg.ROCKET_RADIUS + cfg.ASTEROID_RADIUS,
+                ):
+                    self.rockets.remove(rocket)
+                    self.asteroids.remove(asteroid)
+                    self.explosions.append(
+                        Explosion(self.explosion_frames, asteroid.position)
+                    )
+                    self.score += 1
+                    break
+
+        for asteroid in self.asteroids:
+            if touching(
+                self.player.position,
+                asteroid.position,
+                cfg.SHIP_RADIUS + cfg.ASTEROID_RADIUS,
+            ):
+                self.asteroids.remove(asteroid)
+                self.explosions.append(
+                    Explosion(self.explosion_frames, asteroid.position)
+                )
+
+                if self.lives == 0:
+                    self.playing = False
+                    self.asteroids.clear()
+                    self.rockets.clear()
+                else:
+                    self.lives -= 1
+                    self.player = Ship(self.ship, self.flame)
+                break
+            
     def run(self):
         """Обрабатывать события и рисовать кадры до закрытия окна."""
         while True:
@@ -154,7 +210,7 @@ class App:
                     and not self.playing
                     and self.card.collidepoint(event.pos)
                 ):
-                    self.playing = True
+                    self._start_game()
                 if (
                     event.type == pygame.KEYDOWN
                     and event.key == pygame.K_SPACE
@@ -163,16 +219,31 @@ class App:
                     self.rockets.append(Rocket(self.rocket_image, self.player))
 
             self.scroll = (self.scroll + cfg.BACKGROUND_SPEED * dt) % cfg.WIDTH
-            self._draw_background()
+
+            for explosion in self.explosions:
+                explosion.update(dt)
+            self.explosions = [
+                explosion for explosion in self.explosions if not explosion.finished
+            ]
+
             if self.playing:
                 self._update_playfield(dt)
+
+            self._draw_background()
+
+            if self.playing:
                 for asteroid in self.asteroids:
                     asteroid.draw(self.screen)
                 for rocket in self.rockets:
                     rocket.draw(self.screen)
                 self.player.draw(self.screen)
-            else:
+
+            for explosion in self.explosions:
+                explosion.draw(self.screen)
+
+            if not self.playing:
                 self._draw_splash()
+
             self._draw_hud()
             pygame.display.flip()
 

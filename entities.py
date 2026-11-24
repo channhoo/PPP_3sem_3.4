@@ -112,3 +112,36 @@ class Asteroid:
     def draw(self, screen):
         """Нарисовать астероид с учётом перехода через края."""
         draw_wrapped(screen, self.image, self.position, self.angle)
+
+def touching(first, second, radius):
+    """Проверить столкновение по кратчайшему расстоянию через края."""
+    dx = abs(first.x - second.x) % cfg.WIDTH
+    dy = abs(first.y - second.y) % cfg.HEIGHT
+    dx = min(dx, cfg.WIDTH - dx)
+    dy = min(dy, cfg.HEIGHT - dy)
+    return dx**2 + dy**2 <= radius**2
+
+
+class Explosion:
+    """Показывает кадры взрыва в одной точке поля."""
+
+    def __init__(self, frames, position):
+        """Запомнить кадры и координаты центра взрыва."""
+        self.frames = frames
+        self.position = pygame.Vector2(position)
+        self.age = 0.0
+
+    @property
+    def finished(self):
+        """Проверить, закончилась ли анимация."""
+        return self.age >= len(self.frames) * cfg.EXPLOSION_FRAME_TIME
+
+    def update(self, dt):
+        """Продвинуть время анимации."""
+        self.age += dt
+
+    def draw(self, screen):
+        """Нарисовать кадр, соответствующий текущему времени."""
+        if not self.finished:
+            index = int(self.age / cfg.EXPLOSION_FRAME_TIME)
+            draw_wrapped(screen, self.frames[index], self.position, 0)
