@@ -1,8 +1,8 @@
 """Заставка и основной цикл игры «Астероиды»."""
 
 from pathlib import Path
-from random import Random
-from entities import Ship
+from random import Random, choice, randrange
+from entities import Asteroid, Rocket, Ship
 
 import pygame
 
@@ -33,6 +33,10 @@ class App:
         self.ship = load_sprite("ship", 2)
         self.flame = load_sprite("flame", 2)
         self.player = Ship(self.ship, self.flame)
+        self.rocket_image = load_sprite("rocket", 2)
+        self.rockets = []
+        self.asteroids = []
+        self.spawn_timer = cfg.ASTEROID_INTERVAL
         self.life_icon = load_sprite("life", 2)
         self.rocks = [load_sprite(f"asteroid_{index}", 2) for index in (1, 2, 3)]
         self.distant_rocks = [rock.copy() for rock in self.rocks]
@@ -102,6 +106,39 @@ class App:
             self.font,
         )
 
+    def _spawn_asteroid(self):
+        """Попробовать создать астероид на безопасном расстоянии."""
+        if len(self.asteroids) >= cfg.ASTEROID_LIMIT:
+            return
+
+        x = randrange(cfg.WIDTH)
+        y = randrange(cfg.HEIGHT)
+        dx = abs(x - self.player.position.x)
+        dy = abs(y - self.player.position.y)
+        dx = min(dx, cfg.WIDTH - dx)
+        dy = min(dy, cfg.HEIGHT - dy)
+
+        if dx**2 + dy**2 >= cfg.ASTEROID_SPAWN_DISTANCE**2:
+            self.asteroids.append(Asteroid(choice(self.rocks), (x, y)))
+
+    def _update_playfield(self, dt):
+        """Обновить корабль, ракеты и астероиды за один кадр."""
+        keys = pygame.key.get_pressed()
+        turn = int(keys[pygame.K_RIGHT]) - int(keys[pygame.K_LEFT])
+        self.player.update(dt, turn, keys[pygame.K_UP])
+
+        self.spawn_timer -= dt
+        if self.spawn_timer <= 0:
+            self._spawn_asteroid()
+            self.spawn_timer = cfg.ASTEROID_INTERVAL
+
+        for asteroid in self.asteroids:
+            asteroid.update(dt)
+
+        for rocket in self.rockets:
+            rocket.update(dt)
+        self.rockets = [rocket for rocket in self.rockets if rocket.remaining > 0]
+        
     def run(self):
         """Обрабатывать события и рисовать кадры до закрытия окна."""
         while True:
@@ -118,13 +155,21 @@ class App:
                     and self.card.collidepoint(event.pos)
                 ):
                     self.playing = True
+                if (
+                    event.type == pygame.KEYDOWN
+                    and event.key == pygame.K_SPACE
+                    and self.playing
+                ):
+                    self.rockets.append(Rocket(self.rocket_image, self.player))
 
             self.scroll = (self.scroll + cfg.BACKGROUND_SPEED * dt) % cfg.WIDTH
             self._draw_background()
             if self.playing:
-                keys = pygame.key.get_pressed()
-                turn = int(keys[pygame.K_RIGHT]) - int(keys[pygame.K_LEFT])
-                self.player.update(dt, turn, keys[pygame.K_UP])
+                self._update_playfield(dt)
+                for asteroid in self.asteroids:
+                    asteroid.draw(self.screen)
+                for rocket in self.rockets:
+                    rocket.draw(self.screen)
                 self.player.draw(self.screen)
             else:
                 self._draw_splash()

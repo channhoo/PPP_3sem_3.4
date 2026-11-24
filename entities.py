@@ -3,7 +3,7 @@
 import pygame
 
 import settings as cfg
-
+from random import uniform
 
 class Ship:
     """Корабль игрока с инерцией и двумя состояниями двигателя."""
@@ -49,15 +49,66 @@ class Ship:
         self.position.y %= cfg.HEIGHT
 
     def draw(self, screen):
-        """Нарисовать корабль и его видимые части за краями поля."""
+        """Нарисовать корабль с учётом перехода через края."""
         source = self.thrust_image if self.thrusting else self.idle_image
-        image = pygame.transform.rotate(source, -self.angle)
-        rect = image.get_rect(center=(round(self.position.x),
-                                      round(self.position.y)))
-        field = screen.get_rect()
+        draw_wrapped(screen, source, self.position, self.angle)
 
-        for dx in (-cfg.WIDTH, 0, cfg.WIDTH):
-            for dy in (-cfg.HEIGHT, 0, cfg.HEIGHT):
-                copy_rect = rect.move(dx, dy)
-                if field.colliderect(copy_rect):
-                    screen.blit(image, copy_rect)
+def draw_wrapped(screen, source, position, angle):
+    """Нарисовать спрайт по обе стороны границы при пересечении."""
+    image = pygame.transform.rotate(source, -angle)
+    rect = image.get_rect(center=(round(position.x), round(position.y)))
+    field = screen.get_rect()
+
+    for dx in (-cfg.WIDTH, 0, cfg.WIDTH):
+        for dy in (-cfg.HEIGHT, 0, cfg.HEIGHT):
+            copy_rect = rect.move(dx, dy)
+            if field.colliderect(copy_rect):
+                screen.blit(image, copy_rect)
+
+
+class Rocket:
+    """Ракета, которая летит с постоянной скоростью и исчезает по таймеру."""
+
+    def __init__(self, image, ship):
+        """Создать ракету у носа корабля в направлении выстрела."""
+        self.image = image
+        self.angle = ship.angle
+        direction = pygame.Vector2(1, 0).rotate(self.angle)
+        self.position = ship.position + direction * cfg.ROCKET_NOSE_OFFSET
+        self.velocity = direction * cfg.ROCKET_SPEED
+        self.remaining = cfg.ROCKET_LIFETIME
+
+    def update(self, dt):
+        """Переместить ракету и уменьшить оставшееся время полёта."""
+        self.position += self.velocity * dt
+        self.position.x %= cfg.WIDTH
+        self.position.y %= cfg.HEIGHT
+        self.remaining -= dt
+
+    def draw(self, screen):
+        """Нарисовать ракету с учётом перехода через края."""
+        draw_wrapped(screen, self.image, self.position, self.angle)
+
+
+class Asteroid:
+    """Астероид со случайным направлением, скоростью и вращением."""
+
+    def __init__(self, image, position):
+        """Создать астероид в выбранной точке поля."""
+        self.image = image
+        self.position = pygame.Vector2(position)
+        self.angle = uniform(0, 360)
+        self.spin = uniform(-90, 90)  # Градусов в секунду.
+        speed = uniform(cfg.ASTEROID_MIN_SPEED, cfg.ASTEROID_MAX_SPEED)
+        self.velocity = pygame.Vector2(speed, 0).rotate(uniform(0, 360))
+
+    def update(self, dt):
+        """Переместить и повернуть астероид."""
+        self.position += self.velocity * dt
+        self.position.x %= cfg.WIDTH
+        self.position.y %= cfg.HEIGHT
+        self.angle = (self.angle + self.spin * dt) % 360
+
+    def draw(self, screen):
+        """Нарисовать астероид с учётом перехода через края."""
+        draw_wrapped(screen, self.image, self.position, self.angle)
