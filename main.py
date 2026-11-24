@@ -1,8 +1,8 @@
 """Заставка и основной цикл игры «Астероиды»."""
 
 from pathlib import Path
-from random import Random, choice, randrange
-from entities import Asteroid, Explosion, Rocket, Ship, touching
+from random import Random, choice, randrange, uniform
+from entities import Asteroid, Explosion, Rocket, Ship, Supply, touching
 
 import pygame
 
@@ -45,6 +45,10 @@ class App:
         self.asteroids = []
         self.spawn_timer = cfg.ASTEROID_INTERVAL
         self.life_icon = load_sprite("life", 2)
+        self.capsule_image = load_sprite("capsule", 2)
+        self.capsule = None
+        self.life_bonus = None
+        self.capsule_timer = cfg.CAPSULE_INTERVAL
         self.rocks = [load_sprite(f"asteroid_{index}", 2) for index in (1, 2, 3)]
         self.distant_rocks = [rock.copy() for rock in self.rocks]
         for rock in self.distant_rocks:
@@ -81,9 +85,9 @@ class App:
             self.screen.blit(rock, (left - cfg.WIDTH, y))
 
     def _draw_hud(self):
-        for index in range(self.lives):
+        for index in range(min(self.lives, 5)):
             self.screen.blit(self.life_icon, (24 + index * 28, 20))
-        self._draw_text(f"ЗАПАС {self.lives}", (174, 31), self.font)
+        self._draw_text(f"ЗАПАС {self.lives}", (224, 31), self.font)
         self._draw_text(f"ОЧКИ {self.score}", (863, 31), self.font)
 
     def _draw_splash(self):
@@ -145,6 +149,7 @@ class App:
         for rocket in self.rockets:
             rocket.update(dt)
         self.rockets = [rocket for rocket in self.rockets if rocket.remaining > 0]
+        self._update_supply(dt)
         self._check_collisions()
         
     def _start_game(self):
@@ -156,8 +161,64 @@ class App:
         self.spawn_timer = cfg.ASTEROID_INTERVAL
         self.lives = cfg.START_LIVES
         self.score = 0
+        self.capsule = None
+        self.life_bonus = None
+        self.capsule_timer = cfg.CAPSULE_INTERVAL
         self.playing = True
 
+    def _update_supply(self, dt):
+        """Обновить капсулу или бонус и запланировать появление следующей."""
+        if self.capsule is not None:
+            self.capsule.update(dt)
+            return
+
+        if self.life_bonus is not None:
+            self.life_bonus.update(dt)
+            if self.life_bonus.remaining <= 0:
+                self.life_bonus = None
+            return
+
+        self.capsule_timer -= dt
+        if self.capsule_timer > 0:
+            return
+
+        position = pygame.Vector2(randrange(cfg.WIDTH), randrange(cfg.HEIGHT))
+        if touching(position, self.player.position, cfg.CAPSULE_SPAWN_DISTANCE):
+            return
+
+        velocity = pygame.Vector2(cfg.CAPSULE_SPEED, 0).rotate(uniform(0, 360))
+        self.capsule = Supply(self.capsule_image, position, velocity)
+        self.capsule_timer = cfg.CAPSULE_INTERVAL
+
+    def _check_supply_collisions(self):
+        """Вскрыть капсулу ракетой или подобрать выпавший бонус."""
+        if self.life_bonus is not None and touching(
+            self.player.position,
+            self.life_bonus.position,
+            cfg.SHIP_RADIUS + cfg.BONUS_RADIUS,
+        ):
+            self.lives += 1
+            self.life_bonus = None
+
+        if self.capsule is None:
+            return
+
+        for rocket in self.rockets:
+            if touching(
+                rocket.position,
+                self.capsule.position,
+                cfg.ROCKET_RADIUS + cfg.CAPSULE_RADIUS,
+            ):
+                self.rockets.remove(rocket)
+                self.life_bonus = Supply(
+                    self.life_icon,
+                    self.capsule.position,
+                    self.capsule.velocity,
+                    cfg.BONUS_LIFETIME,
+                )
+                self.capsule = None
+                break
+            
     def _check_collisions(self):
         """Обработать попадания ракет и столкновение с кораблём."""
         for rocket in self.rockets[:]:
@@ -174,6 +235,8 @@ class App:
                     )
                     self.score += 1
                     break
+                
+        self._check_supply_collisions()
 
         for asteroid in self.asteroids:
             if touching(
@@ -236,6 +299,10 @@ class App:
                     asteroid.draw(self.screen)
                 for rocket in self.rockets:
                     rocket.draw(self.screen)
+                if self.capsule is not None:
+                    self.capsule.draw(self.screen)
+                if self.life_bonus is not None:
+                    self.life_bonus.draw(self.screen)
                 self.player.draw(self.screen)
 
             for explosion in self.explosions:

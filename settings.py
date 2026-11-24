@@ -38,3 +38,13 @@ ASTEROID_RADIUS = 25
 EXPLOSION_FRAME_SIZE = 32
 EXPLOSION_SCALE = 2
 EXPLOSION_FRAME_TIME = 0.07  # Секунд на один кадр.
+
+CAPSULE_INTERVAL = 25.0  # Секунд до следующей капсулы.
+CAPSULE_SPEED = 30  # Скорость дрейфа в пикселях в секунду.
+CAPSULE_RADIUS = 14
+CAPSULE_SPAWN_DISTANCE = 160  # Минимальное расстояние от корабля.
+
+BONUS_LIFETIME = 7.0  # Сколько секунд можно подобрать бонус.
+BONUS_RADIUS = 12
+BONUS_BLINK_TIME = 2.0  # Бонус мигает перед исчезновением.
+BONUS_BLINK_INTERVAL = 0.15  # Сколько длится одна фаза мигания.

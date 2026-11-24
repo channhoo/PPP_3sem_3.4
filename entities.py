@@ -145,3 +145,30 @@ class Explosion:
         if not self.finished:
             index = int(self.age / cfg.EXPLOSION_FRAME_TIME)
             draw_wrapped(screen, self.frames[index], self.position, 0)
+
+class Supply:
+    """Дрейфующая капсула или выпавший из неё бонус."""
+
+    def __init__(self, image, position, velocity, lifetime=None):
+        """Запомнить спрайт, движение и время до исчезновения."""
+        self.image = image
+        self.position = pygame.Vector2(position)
+        self.velocity = pygame.Vector2(velocity)
+        self.remaining = lifetime
+
+    def update(self, dt):
+        """Сдвинуть объект и обновить его таймер."""
+        self.position += self.velocity * dt
+        self.position.x %= cfg.WIDTH
+        self.position.y %= cfg.HEIGHT
+        if self.remaining is not None:
+            self.remaining -= dt
+
+    def draw(self, screen):
+        """Нарисовать объект, мигая перед исчезновением бонуса."""
+        if self.remaining is not None and self.remaining <= cfg.BONUS_BLINK_TIME:
+            phase = int(self.remaining / cfg.BONUS_BLINK_INTERVAL)
+            if phase % 2:
+                return
+        draw_wrapped(screen, self.image, self.position, 0)
+        
